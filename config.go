@@ -17,11 +17,12 @@ type config struct {
 	// Claude is the claude binary recaps run with. Empty = the one the agent
 	// runs, or "claude" on PATH.
 	Claude string `json:"claude"`
-	// Agents names the agents to recap: any of claude, codex, opencode,
+	// Agents names the agents to recap: any of claude, codex, omp, opencode,
 	// hermes. Empty = claude and codex, which recap themselves: a fork of
-	// the conversation that goes nowhere it hadn't been. OpenCode's and
-	// Hermes's are read by Memex and sent to the summarizer, which by
-	// default is Claude, so those are for you to add.
+	// the conversation that goes nowhere it hadn't been. omp's is forked
+	// from the session path herdr gives it; OpenCode's and Hermes's are read
+	// by Memex and sent to the summarizer, which by default is Claude, so
+	// those are for you to add.
 	Agents []string `json:"agents"`
 	// Codex is the codex binary Codex recaps run with. Empty = the one the
 	// agent runs, or "codex" on PATH.

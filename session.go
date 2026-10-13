@@ -16,9 +16,10 @@ import (
 type claudeSession struct {
 	ID string
 	// Agent is whose session it is: "" or claude for Claude's own. Another
-	// agent's is recapped by that agent itself (Native: Codex, codex.go) or
-	// read through Memex (memex.go), which says how current it is (Stamp:
-	// its last activity and message count) and how long (MessageCount).
+	// agent's is recapped by that agent itself (Native: Codex and omp,
+	// codex.go, omp.go) or read through Memex (memex.go), which says how
+	// current it is (Stamp: its last activity and message count) and how long
+	// (MessageCount).
 	Agent        string
 	Native       bool
 	Stamp        string
@@ -70,19 +71,22 @@ func resolveSession(paneID string) (claudeSession, error) {
 	return sessionForPID(pid, argv0)
 }
 
-// claudePID picks the claude process out of a pane's foreground processes: the
-// last one, as a wrapper (a profile switcher, say) comes before what it runs.
-// argv0 is what it was started as, when that was claude ("" when it was run
-// some other way, under node say).
-func claudePID(procs []process) (pid int, argv0 string) {
+// claudePID picks the claude process out of a pane's foreground processes.
+func claudePID(procs []process) (pid int, argv0 string) { return binaryPID(procs, "claude") }
+
+// binaryPID picks the process a pane's agent runs as out of its foreground
+// processes: the last one, as a wrapper (a profile switcher, say) comes before
+// what it runs. argv0 is what it was started as, when that was the binary
+// itself ("" when it was run some other way, under node say).
+func binaryPID(procs []process, binary string) (pid int, argv0 string) {
 	for _, p := range procs {
 		name := p.Name
 		if len(p.Argv) > 0 {
 			name = filepath.Base(p.Argv[0])
 		}
-		if name == "claude" || p.Name == "claude" {
+		if name == binary || p.Name == binary {
 			pid, argv0 = p.PID, ""
-			if len(p.Argv) > 0 && filepath.Base(p.Argv[0]) == "claude" {
+			if len(p.Argv) > 0 && filepath.Base(p.Argv[0]) == binary {
 				argv0 = p.Argv[0]
 			}
 		}
