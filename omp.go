@@ -170,13 +170,35 @@ disabledProviders:
 // ompOverlayPath is where the overlay lives, in the plugin's state dir.
 func ompOverlayPath() string { return filepath.Join(stateDir(), "omp-fork.yml") }
 
-// writeOmpOverlay writes the overlay out, for a fork to be passed it.
+// forkDir is where a recap's fork runs are written, one directory each.
+func forkDir() string { return filepath.Join(stateDir(), "fork") }
+
+// pruneForkRuns forgets fork run directories old enough that their recap has
+// long since been taken or died with the machine. A recap removes its own run,
+// but one killed mid-run (a restart mid-recap, a SIGKILL) leaves its fork's
+// file and the session's copied artifacts behind.
+func pruneForkRuns() {
+	entries, _ := os.ReadDir(forkDir())
+	for _, e := range entries {
+		if info, err := e.Info(); err == nil && time.Since(info.ModTime()) > 24*time.Hour {
+			os.RemoveAll(filepath.Join(forkDir(), e.Name()))
+		}
+	}
+}
+
+// writeOmpOverlay writes the overlay out, for a fork to be passed it. It goes
+// through a temporary file and a rename, as a recap does: the path is shared
+// by every recap, and a fork starting while it was being written would
+// otherwise read a truncated config.
 func writeOmpOverlay() (string, error) {
 	path := ompOverlayPath()
 	if err := os.MkdirAll(stateDir(), 0o700); err != nil {
 		return "", err
 	}
-	if err := os.WriteFile(path, []byte(ompOverlay), 0o600); err != nil {
+	if err := os.WriteFile(path+".tmp", []byte(ompOverlay), 0o600); err != nil {
+		return "", err
+	}
+	if err := os.Rename(path+".tmp", path); err != nil {
 		return "", err
 	}
 	return path, nil
@@ -256,14 +278,14 @@ var runOmp = func(ctx context.Context, s claudeSession, prompt string) (string, 
 	if err != nil {
 		return "", err
 	}
-	forkDir := filepath.Join(stateDir(), "fork")
-	if err := os.MkdirAll(forkDir, 0o700); err != nil {
+	fork := forkDir()
+	if err := os.MkdirAll(fork, 0o700); err != nil {
 		return "", err
 	}
 	// A directory per run: it holds the fork's file and, beside it, what the
 	// session's artifacts were copied to, and goes whole when the recap is
 	// taken, on success or failure.
-	dir, err := os.MkdirTemp(forkDir, "run-")
+	dir, err := os.MkdirTemp(fork, "run-")
 	if err != nil {
 		return "", err
 	}

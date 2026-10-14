@@ -30,6 +30,7 @@ func tick(cfg config) error {
 	}
 	only := hookPane()
 	pruneScheduled()
+	pruneForkRuns()
 	for _, a := range agents {
 		if only != "" && a.PaneID != only {
 			continue

@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 const ompNative = "01a1374c-630d-75c9-a953-0e6ad3501406"
@@ -194,6 +195,25 @@ func TestAnOmpForkAnswerThatsAToolCallIsntARecap(t *testing.T) {
 	}
 	if _, err := runOmpRecap(context.Background(), withDefaults(config{}), claudeSession{ID: ompNative}); err != nil {
 		t.Errorf("a recap was refused: %v", err)
+	}
+}
+
+func TestOnlyStaleOmpForkRunsArePruned(t *testing.T) {
+	t.Setenv("HERDR_PLUGIN_STATE_DIR", t.TempDir())
+	stale, inFlight := filepath.Join(forkDir(), "run-old"), filepath.Join(forkDir(), "run-now")
+	for _, dir := range []string{stale, inFlight} {
+		write(t, filepath.Join(dir, "fork.jsonl"), "{}\n")
+	}
+	past := time.Now().Add(-25 * time.Hour)
+	if err := os.Chtimes(stale, past, past); err != nil {
+		t.Fatal(err)
+	}
+	pruneForkRuns()
+	if _, err := os.Stat(stale); !os.IsNotExist(err) {
+		t.Errorf("a day-old run is still there: %v", err)
+	}
+	if _, err := os.Stat(inFlight); err != nil {
+		t.Errorf("a run that may be in flight was pruned: %v", err)
 	}
 }
 
