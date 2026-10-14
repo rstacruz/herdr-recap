@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -195,8 +196,12 @@ const ompPrompt = "Stop: this is a recap request, not a continuation of the work
 	"Don't use any tools. Answer with 1-2 plain sentences, no markdown, and the recap alone."
 
 // ompToolCall is how omp shows a tool call in what a model reads, and so what
-// a model writes when it means to make one. A recap doesn't have one.
-const ompToolCall = "｜｜DSML｜｜"
+// a model writes when it means to make one. Its "DSML" dialect is written
+// both ways — `<｜DSML｜tool_calls>` with one full-width bar (what omp
+// 18.10.1's own renderer and parser use, ASCII `|` accepted too), and
+// `<｜｜DSML｜｜…>` with a doubled one (what the continuations that prompted
+// this check came back with) — so both are matched. A recap has neither.
+var ompToolCall = regexp.MustCompile(`[｜|]\s*DSML\s*[｜|]`)
 
 // ompArgs forks the session for one answer to prompt, in a run the fork can
 // write nothing of the project's or the user's into: a session dir of the
@@ -289,7 +294,7 @@ func runOmpRecap(ctx context.Context, cfg config, s claudeSession) (recap, error
 	if text == "" {
 		return recap{}, errors.New("omp gave an empty recap")
 	}
-	if strings.Contains(text, ompToolCall) {
+	if ompToolCall.MatchString(text) {
 		// The fork carried the session's work on rather than recapping it:
 		// no recap is better than one that is really the next step of the
 		// work, shown as though it were where the work got to.

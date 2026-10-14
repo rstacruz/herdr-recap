@@ -176,13 +176,24 @@ func TestOmpRecapsItselfOnceWhileItsSessionStandsStill(t *testing.T) {
 
 func TestAnOmpForkAnswerThatsAToolCallIsntARecap(t *testing.T) {
 	old := runOmp
-	runOmp = func(context.Context, claudeSession, string) (string, error) {
-		return "<｜｜DSML｜｜ calls>\n<｜｜DSML｜｜ invoke name=\"bash\">\n<｜｜DSML｜｜ parameter name=\"command\" string=\"true\">git status\n", nil
-	}
 	t.Cleanup(func() { runOmp = old })
-	if _, err := runOmpRecap(context.Background(), withDefaults(config{}), claudeSession{ID: ompNative}); err == nil ||
-		!strings.Contains(err.Error(), "tool call") {
-		t.Errorf("a tool call was taken as a recap: %v", err)
+	for _, answer := range []string{
+		"<｜｜DSML｜｜ calls>\n<｜｜DSML｜｜ invoke name=\"bash\">\n<｜｜DSML｜｜ parameter name=\"command\" string=\"true\">git status\n",
+		"<｜DSML｜tool_calls>\n<｜DSML｜invoke name=\"bash\">\n",
+		"<|DSML|tool_calls>\n",
+	} {
+		runOmp = func(context.Context, claudeSession, string) (string, error) { return answer, nil }
+		if _, err := runOmpRecap(context.Background(), withDefaults(config{}), claudeSession{ID: ompNative}); err == nil ||
+			!strings.Contains(err.Error(), "tool call") {
+			t.Errorf("a tool call was taken as a recap: %q -> %v", answer, err)
+		}
+	}
+	// A recap that only mentions the dialect is still a recap.
+	runOmp = func(context.Context, claudeSession, string) (string, error) {
+		return "Teaching the DSML rendering to escape its own bars. Next, add a test.", nil
+	}
+	if _, err := runOmpRecap(context.Background(), withDefaults(config{}), claudeSession{ID: ompNative}); err != nil {
+		t.Errorf("a recap was refused: %v", err)
 	}
 }
 
