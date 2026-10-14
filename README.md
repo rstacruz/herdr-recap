@@ -306,9 +306,9 @@ does.
 
 ## Other agents
 
-Claude and Codex agents are recapped, with nothing to set up. Both recap
-themselves, in a fork of their own conversation that is never saved.
-`agents` in `config.json` says otherwise: fewer, or more.
+Claude, Codex and omp agents are recapped, each in a fork of its own
+conversation that is never saved. `agents` in `config.json` says otherwise:
+fewer, or more.
 
 ```json
 { "agents": ["claude", "codex", "omp", "opencode"] }
@@ -321,15 +321,17 @@ own prompt cache, and it needs nothing installed but Codex. The session is
 found from the pane's Codex process, which keeps its session file open; no
 herdr integration for Codex is needed.
 
-**omp** recaps itself too, when you add it to `agents`: herdr's omp
-integration reports the pane's session file, so nothing has to be hunted
-for, and `omp --fork <session> -p` forks it for one answer, in the shape of
-omp's own idle recap. omp has no fork that saves nothing, so the fork is
-written into a session directory of the plugin's own and removed once the
-recap is taken. It runs bare — no tools, extensions, skills or rules, and no
-MCP servers (omp has no `--no-mcp`, so discovery is turned off with a
-`--config` overlay) — and without herdr's or the terminal's environment, so
-it reports to nothing and leaves no `--continue` breadcrumb.
+**omp** recaps itself too, as Codex does, once herdr's omp integration is
+installed (`herdr integration install omp`): it reports the pane's session
+file, so nothing has to be hunted for, and `omp --fork <session> -p` forks
+it for one answer, in the shape of omp's own idle recap. omp has no fork
+that saves nothing, so the fork is written into a session directory of the
+plugin's own and removed once the recap is taken. It runs bare — no tools,
+extensions, skills or rules, and no MCP servers (omp has no `--no-mcp`, so
+discovery is turned off with a `--config` overlay) — and without herdr's or
+the terminal's environment, so it reports to nothing and leaves no
+`--continue` breadcrumb. Without that integration an omp pane has no
+session for herdr to report, and isn't recapped.
 
 **OpenCode** and **Hermes** are recapped through
 [Memex](https://github.com/nicosuave/memex), which reads their sessions.
@@ -342,11 +344,12 @@ know its ID (its integration for that agent, `herdr integration install`); a
 row whose session Memex hasn't indexed yet says so, and is looked up again
 while the popup is open.
 
-OpenCode and Hermes are yours to add for that reason; omp, because a recap
-of it is a request against your own plan or key for that agent, as a Codex
-one is. `"agents": ["claude"]` turns Codex's off; an omp agent left out
-isn't recapped at all. An agent that isn't in the list says *Recaps aren't
-available for this agent.*
+OpenCode and Hermes are yours to add, since the conversation leaves the
+agent that had it. Codex and omp recap themselves, in a fork of their own
+conversation that goes nowhere it hadn't been, against your own plan or key
+for that agent; both are on by default, and `"agents": ["claude"]` turns
+them off. An agent that isn't in the list says *Recaps aren't available for
+this agent.*
 
 [Better titles](#better-titles) are for Claude and Codex agents: Codex is
 asked for one in a fork too, and renamed with its own `/rename`. Its
@@ -410,7 +413,7 @@ Optional: `config.json` in the plugin's config directory
 | --- | --- | --- |
 | `recap_after_seconds` | `180` | How long an agent waits on you, unlooked at, before its recap is written |
 | `claude` | the agent's own | Claude Code binary for native Claude recaps and the default non-Claude summarizer |
-| `agents` | `["claude", "codex"]` | The agents to recap: any of `"claude"`, `"codex"`, `"omp"`, `"opencode"`, `"hermes"` (see [Other agents](#other-agents)) |
+| `agents` | `["claude", "codex", "omp"]` | The agents to recap: any of `"claude"`, `"codex"`, `"omp"`, `"opencode"`, `"hermes"` (see [Other agents](#other-agents)) |
 | `codex` | the agent's own | The Codex binary to run Codex recaps with |
 | `memex` | `"memex"` | Memex binary used to resolve and read OpenCode and Hermes sessions |
 | `transcript_max_chars` | `24000` | Maximum recent user/assistant transcript characters sent to the summarizer |

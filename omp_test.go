@@ -105,16 +105,15 @@ func TestAnOmpPaneWithNothingSaidHasNoTranscript(t *testing.T) {
 func TestOmpIsRecappedOnlyWhenHerdrHasItsPath(t *testing.T) {
 	done := agentInfo{Agent: "omp", Status: "done",
 		AgentSession: agentSession{Source: "herdr:omp", Kind: "path", Value: "/sessions/x.jsonl"}}
-	if recapCapable(withDefaults(config{}), done) {
-		t.Error("omp, left out of agents, is recapped")
+	if !recapCapable(withDefaults(config{}), done) || !waiting(withDefaults(config{}), done) {
+		t.Error("omp, without being asked for, isn't recapped")
 	}
-	named := withDefaults(config{Agents: []string{"claude", "codex", "omp"}})
-	if !recapCapable(named, done) || !waiting(named, done) {
-		t.Error("omp in agents isn't recapped")
+	if recapCapable(withDefaults(config{Agents: []string{"claude", "codex"}}), done) {
+		t.Error("omp, left out of agents, is recapped")
 	}
 	byID := done
 	byID.AgentSession.Kind, byID.AgentSession.Value = "id", ompNative
-	if recapCapable(named, byID) {
+	if recapCapable(withDefaults(config{}), byID) {
 		t.Error("omp, without the path herdr has for it")
 	}
 }
