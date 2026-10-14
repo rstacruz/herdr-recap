@@ -113,7 +113,7 @@ func suggestTitle(ctx context.Context, cfg config, s claudeSession, title string
 
 // titleable: the session's agent can be asked for a title and given one:
 // Claude's and Codex's, each forked for the asking and with a /rename.
-func titleable(s claudeSession) bool { return claudes(s) || s.Native }
+func titleable(s claudeSession) bool { return claudes(s) || (s.Native && s.Agent == "codex") }
 
 func parseTitle(out []byte) (string, float64, error) {
 	text, cost, isError, err := claudeResult(out, true)

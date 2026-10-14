@@ -180,8 +180,9 @@ there.
 - **Claude Code** with `/recap` (2.1.x), signed in. Claude sessions keep their
   native `/recap` path.
 - Optional, for [other agents](#other-agents): **Codex** for its own recaps
-  (tried with 0.157), and **Memex 0.24.0** or later for OpenCode recaps
-  (tried with 0.27.2). Hermes recaps need a Memex that reads Hermes
+  (tried with 0.157), **omp** (tried with 18.10), and **Memex 0.24.0** or
+  later for OpenCode recaps (tried with 0.27.2). Hermes recaps need a Memex
+  that reads Hermes
   sessions
   ([nicosuave/memex#220](https://github.com/nicosuave/memex/pull/220)),
   which 0.27.2 does.
@@ -305,12 +306,12 @@ does.
 
 ## Other agents
 
-Claude and Codex agents are recapped, with nothing to set up. Both recap
-themselves, in a fork of their own conversation that is never saved.
-`agents` in `config.json` says otherwise: fewer, or more.
+Claude, Codex and omp agents are recapped, each in a fork of its own
+conversation that is never saved. `agents` in `config.json` says otherwise:
+fewer, or more.
 
 ```json
-{ "agents": ["claude", "codex", "opencode"] }
+{ "agents": ["claude", "codex", "omp", "opencode"] }
 ```
 
 **Codex** recaps itself, as Claude does: `codex exec fork --ephemeral` forks
@@ -319,6 +320,18 @@ the conversation goes nowhere it hadn't been, it reads from the session's
 own prompt cache, and it needs nothing installed but Codex. The session is
 found from the pane's Codex process, which keeps its session file open; no
 herdr integration for Codex is needed.
+
+**omp** recaps itself too, as Codex does, once herdr's omp integration is
+installed (`herdr integration install omp`): it reports the pane's session
+file, so nothing has to be hunted for, and `omp --fork <session> -p` forks
+it for one answer, in the shape of omp's own idle recap. omp has no fork
+that saves nothing, so the fork is written into a session directory of the
+plugin's own and removed once the recap is taken. It runs bare — no tools,
+extensions, skills or rules, and no MCP servers (omp has no `--no-mcp`, so
+discovery is turned off with a `--config` overlay) — and without herdr's or
+the terminal's environment, so it reports to nothing and leaves no
+`--continue` breadcrumb. Without that integration an omp pane has no
+session for herdr to report, and isn't recapped.
 
 **OpenCode** and **Hermes** are recapped through
 [Memex](https://github.com/nicosuave/memex), which reads their sessions.
@@ -331,15 +344,18 @@ know its ID (its integration for that agent, `herdr integration install`); a
 row whose session Memex hasn't indexed yet says so, and is looked up again
 while the popup is open.
 
-OpenCode and Hermes are yours to add for that reason. A Codex recap, like a
-Claude one, is a request against your own plan or key for that agent:
-`"agents": ["claude"]` turns Codex's off. An agent that isn't in the list
-says *Recaps aren't available for this agent.*
+OpenCode and Hermes are yours to add, since the conversation leaves the
+agent that had it. Codex and omp recap themselves, in a fork of their own
+conversation that goes nowhere it hadn't been, against your own plan or key
+for that agent; both are on by default, and `"agents": ["claude"]` turns
+them off. An agent that isn't in the list says *Recaps aren't available for
+this agent.*
 
 [Better titles](#better-titles) are for Claude and Codex agents: Codex is
 asked for one in a fork too, and renamed with its own `/rename`. Its
 terminal title is the session's name and its folder (*Fix the Login Bug |
-my-repo*); the name is what's judged and replaced.
+my-repo*); the name is what's judged and replaced. omp names its own
+sessions, so none is suggested for it.
 
 ## When recaps are written
 
@@ -369,6 +385,10 @@ A Codex recap is one short Codex request on its own conversation, against
 your Codex plan or key; in testing a fork read four fifths of a 56k-token
 session from its cache.
 
+An omp recap is one short omp request on its own conversation, against your
+omp plan or key, in a fork that inherits the session's prompt cache as
+Codex's does.
+
 OpenCode and Hermes recaps do not reuse the agent's session cache.
 Memex reads a bounded recent transcript, then the configured summarizer handles
 it as a fresh bounded request. Two large examples measured with Claude's
@@ -393,7 +413,7 @@ Optional: `config.json` in the plugin's config directory
 | --- | --- | --- |
 | `recap_after_seconds` | `180` | How long an agent waits on you, unlooked at, before its recap is written |
 | `claude` | the agent's own | Claude Code binary for native Claude recaps and the default non-Claude summarizer |
-| `agents` | `["claude", "codex"]` | The agents to recap: any of `"claude"`, `"codex"`, `"opencode"`, `"hermes"` (see [Other agents](#other-agents)) |
+| `agents` | `["claude", "codex", "omp"]` | The agents to recap: any of `"claude"`, `"codex"`, `"omp"`, `"opencode"`, `"hermes"` (see [Other agents](#other-agents)) |
 | `codex` | the agent's own | The Codex binary to run Codex recaps with |
 | `memex` | `"memex"` | Memex binary used to resolve and read OpenCode and Hermes sessions |
 | `transcript_max_chars` | `24000` | Maximum recent user/assistant transcript characters sent to the summarizer |
@@ -441,7 +461,11 @@ state in the state's colour, the checks and the review in theirs.
 
 Claude recaps are made by the same Claude Code, account and settings the agent
 uses, on its own conversation, so nothing goes anywhere it hadn't already.
-Codex recaps are made by Codex, the same way. OpenCode and Hermes are
+Codex recaps are made by Codex, the same way, and omp recaps by omp, in a fork
+of the pane's session that omp writes to disk: the plugin gives it a session
+directory of its own and removes it, file and copied artifacts both, once the
+recap is taken. That fork runs with no tools, extensions, skills or rules and
+no MCP servers, and without herdr's environment. OpenCode and Hermes are
 recapped only if you add them to `agents`. Those recaps read a bounded page
 through
 Memex and send only user/assistant text to the configured summarizer, as a
@@ -453,8 +477,8 @@ default summarizer is a new, non-persistent Claude print-mode request and has
 the usual Claude billing or plan cost. Recaps are kept in
 `~/.local/state/herdr/plugins/herdr-recap/recaps/`, readable only by you.
 
-Searching the conversations (when no row matches the filter) reads Claude's
-and Codex's transcripts where they are on your disk, and sends nothing
+Searching the conversations (when no row matches the filter) reads Claude's,
+Codex's and omp's transcripts where they are on your disk, and sends nothing
 anywhere. An agent read through Memex is searched in the same recent page a
 recap of it reads.
 
@@ -529,6 +553,23 @@ has open (`/proc/<pid>/fd` on Linux, `lsof` on macOS), and the recap is
 `codex exec fork <id> --ephemeral -c sandbox_mode="read-only"` with the pane's
 `PATH` and `CODEX_HOME`, run outside the agent's folder. It's cached with the
 session file's size and time, as Claude's is.
+
+For omp, herdr's omp integration reports the pane's session file, which is
+read where it is: the session's id and the directory it was started in are in
+the file's own `{"type":"session"}` record, and a session with nothing said
+yet has no transcript to recap. The recap is
+
+```sh
+omp --fork <session> --session-dir <run> --config <overlay> --no-tools --no-extensions --no-skills --no-rules --no-title --thinking off -p <prompt>
+```
+
+run in the session's directory with the pane's `PATH`. The run's directory,
+holding the fork's file and its copied artifacts, is removed whole once the
+recap is taken, whatever it answered. The request opens by stopping the work,
+because a fork of a pane that is mid-turn can otherwise carry its unfinished
+step on instead of recapping, and an answer that comes back as a tool call
+is refused rather than kept as the recap. It's cached with the transcript's
+size and time, as the others are.
 
 For OpenCode and Hermes, herdr's exact `agent_session.value` and source
 are matched with `memex sessions`. The plugin then reads recent records with a

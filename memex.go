@@ -131,24 +131,26 @@ func recapContext(ctx context.Context, cfg config) (context.Context, context.Can
 
 func supportedAgent(agent string) bool {
 	switch agent {
-	case "claude", "codex", "opencode", "hermes":
+	case "claude", "codex", "omp", "opencode", "hermes":
 		return true
 	}
 	return false
 }
 
 // recapCapable: the agent's conversation can be recapped: it's one of the
-// agents config.json names (Claude and Codex, unless it says otherwise).
-// Claude's and Codex's sessions are found from their processes; one read
-// through Memex has to be known to herdr by its ID.
+// agents config.json names. Claude's and Codex's sessions are found from
+// their processes, omp's from the path herdr has for it; one read through
+// Memex has to be known to herdr by its ID.
 func recapCapable(cfg config, a agentInfo) bool {
 	switch {
-	case !slices.Contains(cfg.Agents, a.Agent):
+	case !supportedAgent(a.Agent) || !slices.Contains(cfg.Agents, a.Agent):
 		return false
 	case a.Agent == "claude", a.Agent == "codex":
 		return true
+	case a.Agent == "omp":
+		return a.AgentSession.Kind == "path" && a.AgentSession.Value != ""
 	}
-	return supportedAgent(a.Agent) && a.AgentSession.Kind == "id" && a.AgentSession.Value != ""
+	return a.AgentSession.Kind == "id" && a.AgentSession.Value != ""
 }
 
 // paneEnv is the environment of the agent in a pane: what a summarizer is
@@ -167,7 +169,8 @@ var paneEnv = func(paneID string) map[string]string {
 }
 
 // resolveAgentSession finds the session in an agent's pane: Claude's and
-// Codex's from their processes, another's through Memex.
+// Codex's from their processes, omp's from the path herdr has for it,
+// another's through Memex.
 func resolveAgentSession(ctx context.Context, cfg config, a agentInfo) (claudeSession, error) {
 	switch a.Agent {
 	case "claude":
@@ -176,6 +179,8 @@ func resolveAgentSession(ctx context.Context, cfg config, a agentInfo) (claudeSe
 		return s, err
 	case "codex":
 		return resolveCodexSession(a)
+	case "omp":
+		return resolveOmpSession(a)
 	}
 	return resolveMemexSession(ctx, cfg, a)
 }

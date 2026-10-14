@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.9.0 - 2026-10-14
+
+- **omp agents are recapped, as Codex's are.** herdr's omp integration
+  reports the pane's session file, so the session is read where it is, and
+  the recap is a fork of it (`omp --fork <session> -p`), asked for a line in
+  the shape of omp's own idle recap. omp has no fork that saves nothing, so
+  the fork is written into a session directory of the plugin's own and
+  removed once the recap is taken; it runs bare — no tools, extensions,
+  skills, rules or MCP servers, and neither herdr's nor the terminal's
+  environment, so it reports to nothing.
+- **omp recaps are on by default**, like Codex's: omp recaps itself, in a
+  fork of the pane's own session, so nothing leaves it. Only a pane herdr
+  has a session path for is recapped, which is what its omp integration
+  (`herdr integration install omp`) reports; leave `omp` out of `agents` to
+  turn that off.
+- **A recap of an omp pane that is still working stops it rather than
+  continuing it**: the request says so, and an answer that comes back as a
+  tool call is refused instead of being kept as the recap.
+- **Filtering searches omp conversations**, read on disk as Claude's and
+  Codex's are.
+
 ## 0.8.1 - 2026-10-13
 
 - **herdr-file-transfer joins the plugins that work together.** The README's
