@@ -562,8 +562,11 @@ omp --fork <session> --session-dir <run> --config <overlay> --no-tools --no-exte
 
 run in the session's directory with the pane's `PATH`. The run's directory,
 holding the fork's file and its copied artifacts, is removed whole once the
-recap is taken, whatever it answered. It's cached with the transcript's size
-and time, as the others are.
+recap is taken, whatever it answered. The request opens by stopping the work,
+because a fork of a pane that is mid-turn can otherwise carry its unfinished
+step on instead of recapping, and an answer that comes back as a tool call
+is refused rather than kept as the recap. It's cached with the transcript's
+size and time, as the others are.
 
 For OpenCode and Hermes, herdr's exact `agent_session.value` and source
 are matched with `memex sessions`. The plugin then reads recent records with a

@@ -10,6 +10,9 @@
   plugin's own and removed once the recap is taken; it runs bare — no
   tools, extensions, skills, rules or MCP servers, and neither herdr's nor
   the terminal's environment, so it reports to nothing.
+- **A recap of an omp pane that is still working stops it rather than
+  continuing it**: the request says so, and an answer that comes back as a
+  tool call is refused instead of being kept as the recap.
 - **Filtering searches omp conversations**, read on disk as Claude's and
   Codex's are.
 

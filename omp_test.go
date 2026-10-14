@@ -174,6 +174,18 @@ func TestOmpRecapsItselfOnceWhileItsSessionStandsStill(t *testing.T) {
 	}
 }
 
+func TestAnOmpForkAnswerThatsAToolCallIsntARecap(t *testing.T) {
+	old := runOmp
+	runOmp = func(context.Context, claudeSession, string) (string, error) {
+		return "<｜｜DSML｜｜ calls>\n<｜｜DSML｜｜ invoke name=\"bash\">\n<｜｜DSML｜｜ parameter name=\"command\" string=\"true\">git status\n", nil
+	}
+	t.Cleanup(func() { runOmp = old })
+	if _, err := runOmpRecap(context.Background(), withDefaults(config{}), claudeSession{ID: ompNative}); err == nil ||
+		!strings.Contains(err.Error(), "tool call") {
+		t.Errorf("a tool call was taken as a recap: %v", err)
+	}
+}
+
 func TestOmpRecapsLeaveTheTerminalAndHerdrBehind(t *testing.T) {
 	t.Setenv("HERDR_PANE_ID", "w1:p1")
 	t.Setenv("TMUX_PANE", "%3")

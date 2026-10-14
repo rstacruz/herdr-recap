@@ -176,9 +176,20 @@ func writeOmpOverlay() (string, error) {
 
 // ompPrompt asks for what omp's own recap of an idle session says
 // (recap-user.md): under 40 words, the goal and the current task, then one
-// next action.
-const ompPrompt = "Recap this session in under 40 words, for someone coming back to it: the overall goal and the current task, " +
-	"then one next action. Answer with 1-2 plain sentences, no markdown, and the recap alone."
+// next action. It opens by stopping the work: a fork of a pane that is
+// mid-turn ends on a step omp has no result for, and left to itself the
+// model can carry that step on — with a tool call — instead of recapping
+// (seen on 2026-10-14 with omp 18.10.1, forking a session whose own turn was
+// the recap itself; framing the same in --append-system-prompt made no
+// difference and costs the fork its prompt cache). An answer that is a tool
+// call is refused in runOmpRecap.
+const ompPrompt = "Stop: this is a recap request, not a continuation of the work above, and any step it ends on is not to be carried out. " +
+	"Recap this session in under 40 words, for someone coming back to it: the overall goal and the current task, then one next action. " +
+	"Don't use any tools. Answer with 1-2 plain sentences, no markdown, and the recap alone."
+
+// ompToolCall is how omp shows a tool call in what a model reads, and so what
+// a model writes when it means to make one. A recap doesn't have one.
+const ompToolCall = "｜｜DSML｜｜"
 
 // ompArgs forks the session for one answer to prompt, in a run the fork can
 // write nothing of the project's or the user's into: a session dir of the
@@ -270,6 +281,12 @@ func runOmpRecap(ctx context.Context, cfg config, s claudeSession) (recap, error
 	text := strings.Join(strings.Fields(clean(out, false)), " ")
 	if text == "" {
 		return recap{}, errors.New("omp gave an empty recap")
+	}
+	if strings.Contains(text, ompToolCall) {
+		// The fork carried the session's work on rather than recapping it:
+		// no recap is better than one that is really the next step of the
+		// work, shown as though it were where the work got to.
+		return recap{}, errors.New("omp answered with a tool call, not a recap")
 	}
 	return recap{Session: s.ID, Source: "omp", Text: text, At: time.Now()}, nil
 }
