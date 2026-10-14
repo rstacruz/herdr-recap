@@ -138,20 +138,19 @@ func supportedAgent(agent string) bool {
 }
 
 // recapCapable: the agent's conversation can be recapped: it's one of the
-// agents config.json names (Claude and Codex, unless it says otherwise).
-// Claude's and Codex's sessions are found from their processes, omp's from
-// the path herdr has for it; one read through Memex has to be known to herdr
-// by its ID.
+// agents config.json names. Claude's and Codex's sessions are found from
+// their processes, omp's from the path herdr has for it; one read through
+// Memex has to be known to herdr by its ID.
 func recapCapable(cfg config, a agentInfo) bool {
 	switch {
-	case !slices.Contains(cfg.Agents, a.Agent):
+	case !supportedAgent(a.Agent) || !slices.Contains(cfg.Agents, a.Agent):
 		return false
 	case a.Agent == "claude", a.Agent == "codex":
 		return true
 	case a.Agent == "omp":
 		return a.AgentSession.Kind == "path" && a.AgentSession.Value != ""
 	}
-	return supportedAgent(a.Agent) && a.AgentSession.Kind == "id" && a.AgentSession.Value != ""
+	return a.AgentSession.Kind == "id" && a.AgentSession.Value != ""
 }
 
 // paneEnv is the environment of the agent in a pane: what a summarizer is
