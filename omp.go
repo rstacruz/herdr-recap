@@ -231,12 +231,12 @@ const ompPrompt = "Stop: this is a recap request, not a continuation of the work
 	"Don't use any tools. Answer with 1-2 plain sentences, no markdown, and the recap alone."
 
 // ompToolCall is how omp shows a tool call in what a model reads, and so what
-// a model writes when it means to make one. Its "DSML" dialect is written
-// both ways — `<｜DSML｜tool_calls>` with one full-width bar (what omp
-// 18.10.1's own renderer and parser use, ASCII `|` accepted too), and
-// `<｜｜DSML｜｜…>` with a doubled one (what the continuations that prompted
-// this check came back with) — so both are matched. A recap has neither.
-var ompToolCall = regexp.MustCompile(`[｜|]\s*DSML\s*[｜|]`)
+// a model writes when it means to make one: an opening or closing "DSML" tag,
+// written with one full-width bar around the name (what omp 18.10.1's own
+// renderer and parser use, ASCII `|` accepted too) or a doubled one (what the
+// continuations that prompted this check came back with). The `<` is part of
+// it: a recap that only mentions the marker in prose is still a recap.
+var ompToolCall = regexp.MustCompile(`<\/?[｜|]{1,2}DSML`)
 
 // ompArgs forks the session for one answer to prompt, in a run the fork can
 // write nothing of the project's or the user's into: a session dir of the

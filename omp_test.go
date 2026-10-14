@@ -190,9 +190,9 @@ func TestAnOmpForkAnswerThatsAToolCallIsntARecap(t *testing.T) {
 			t.Errorf("a tool call was taken as a recap: %q -> %v", answer, err)
 		}
 	}
-	// A recap that only mentions the dialect is still a recap.
+	// A recap that only mentions the marker in prose is still a recap.
 	runOmp = func(context.Context, claudeSession, string) (string, error) {
-		return "Teaching the DSML rendering to escape its own bars. Next, add a test.", nil
+		return "Teaching the `|DSML|` guard to leave prose alone. Next, add a test.", nil
 	}
 	if _, err := runOmpRecap(context.Background(), withDefaults(config{}), claudeSession{ID: ompNative}); err != nil {
 		t.Errorf("a recap was refused: %v", err)
