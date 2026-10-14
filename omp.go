@@ -187,18 +187,31 @@ func pruneForkRuns() {
 }
 
 // writeOmpOverlay writes the overlay out, for a fork to be passed it. It goes
-// through a temporary file and a rename, as a recap does: the path is shared
-// by every recap, and a fork starting while it was being written would
-// otherwise read a truncated config.
+// through a temporary file of its own and a rename, so that a fork starting
+// while it is written reads the old file or the new one, never a truncated
+// one. A name per write, not one shared one: a recap is one of several at
+// once (the popup recaps a few rows, and each pane's tick starts its own
+// worker), and two of them renaming the same temporary file would leave one
+// recap failing on a file that is no longer there, or truncating the overlay
+// through a name that now holds it.
 func writeOmpOverlay() (string, error) {
 	path := ompOverlayPath()
-	if err := os.MkdirAll(stateDir(), 0o700); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return "", err
 	}
-	if err := os.WriteFile(path+".tmp", []byte(ompOverlay), 0o600); err != nil {
+	f, err := os.CreateTemp(filepath.Dir(path), ".omp-fork-*.yml")
+	if err != nil {
 		return "", err
 	}
-	if err := os.Rename(path+".tmp", path); err != nil {
+	defer os.Remove(f.Name()) // no-op once the rename has taken it
+	if _, err := f.WriteString(ompOverlay); err != nil {
+		f.Close()
+		return "", err
+	}
+	if err := f.Close(); err != nil {
+		return "", err
+	}
+	if err := os.Rename(f.Name(), path); err != nil {
 		return "", err
 	}
 	return path, nil

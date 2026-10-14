@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -179,7 +180,7 @@ func TestAnOmpForkAnswerThatsAToolCallIsntARecap(t *testing.T) {
 	old := runOmp
 	t.Cleanup(func() { runOmp = old })
 	for _, answer := range []string{
-		"<｜｜DSML｜｜ calls>\n<｜｜DSML｜｜ invoke name=\"bash\">\n<｜｜DSML｜｜ parameter name=\"command\" string=\"true\">git status\n",
+		"<｜｜DSML｜｜ calls>\n<｜｜DSML｜｜ invoke name=\"bash\">\n",
 		"<｜DSML｜tool_calls>\n<｜DSML｜invoke name=\"bash\">\n",
 		"<|DSML|tool_calls>\n",
 	} {
@@ -214,6 +215,29 @@ func TestOnlyStaleOmpForkRunsArePruned(t *testing.T) {
 	}
 	if _, err := os.Stat(inFlight); err != nil {
 		t.Errorf("a run that may be in flight was pruned: %v", err)
+	}
+}
+
+func TestConcurrentOmpRecapsEachWriteTheOverlay(t *testing.T) {
+	t.Setenv("HERDR_PLUGIN_STATE_DIR", t.TempDir())
+	var wg sync.WaitGroup
+	for range 8 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for range 5 {
+				if _, err := writeOmpOverlay(); err != nil {
+					t.Errorf("an overlay write failed: %v", err)
+				}
+			}
+		}()
+	}
+	wg.Wait()
+	if data, err := os.ReadFile(ompOverlayPath()); err != nil || string(data) != ompOverlay {
+		t.Errorf("the overlay is %d bytes: %v", len(data), err)
+	}
+	if left, _ := filepath.Glob(filepath.Join(filepath.Dir(ompOverlayPath()), ".omp-fork-*.yml")); len(left) != 0 {
+		t.Errorf("temporary files left behind: %v", left)
 	}
 }
 
