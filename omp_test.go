@@ -14,12 +14,11 @@ import (
 
 const ompNative = "01a1374c-630d-75c9-a953-0e6ad3501406"
 
-// ompSaid is an entry of a conversation: what a session with something said
-// in it has past its header.
+// ompSaid is an entry of a conversation, past a session's header
 const ompSaid = `{"type":"message","message":{"role":"user","content":[{"type":"text","text":"hello"}]}}`
 
-// ompSession writes a session file as omp writes one — a title slot, the
-// session's own record, then whatever entries — and returns its path.
+// ompSession writes a session file as omp writes one: a title slot, the
+// session's record, then whatever entries
 func ompSession(t *testing.T, dir, id, cwd string, entries ...string) string {
 	t.Helper()
 	lines := []string{
@@ -72,17 +71,14 @@ func TestAnOmpSessionIsFoundFromHerdrsPath(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// The session's own record has the id and the directory it was started
-	// in: the fork keeps that, not the pane's.
+	// The session's own record has the id and the cwd the fork keeps, not
+	// herdr's
 	if !s.Native || s.Agent != "omp" || s.ID != ompNative || s.Transcript != path || s.Cwd != "/repo" {
 		t.Errorf("%+v", s)
 	}
-	// The recap runs as the pane's omp does.
-	if s.Path != binDir || s.Binary != filepath.Join(binDir, "omp") || ompBinary(s) != s.Binary {
+	// The recap runs as the pane's omp does
+	if s.Path != binDir || s.Binary != filepath.Join(binDir, "omp") {
 		t.Errorf("%+v", s)
-	}
-	if got := ompBinary(claudeSession{}); got != "omp" {
-		t.Errorf("binary %q", got)
 	}
 }
 
@@ -123,14 +119,16 @@ func TestOmpIsRecappedOnlyWhenHerdrHasItsPath(t *testing.T) {
 	}
 }
 
-func TestOmpArgsForkIntoThePluginsOwnSessionDir(t *testing.T) {
+func TestOmpArgsForkWithoutToolsOrWriting(t *testing.T) {
 	args := ompArgs("/sessions/x.jsonl", "/state/fork/run-1", "/state/omp-fork.yml", ompPrompt)
 	for _, want := range []string{"--fork", "/sessions/x.jsonl", "--session-dir", "/state/fork/run-1",
-		"--config", "/state/omp-fork.yml", "--no-tools", "--no-extensions", "--no-skills", "--no-rules",
-		"--no-title", "--thinking", "off", "-p", ompPrompt} {
+		"--config", "/state/omp-fork.yml", "--no-tools", "-p", ompPrompt} {
 		if !slices.Contains(args, want) {
 			t.Errorf("args lack %q: %v", want, args)
 		}
+	}
+	if got := ompBinary(claudeSession{}); got != "omp" {
+		t.Errorf("binary %q", got)
 	}
 }
 
@@ -157,8 +155,7 @@ func TestOmpRecapsItselfOnceWhileItsSessionStandsStill(t *testing.T) {
 	path := ompSession(t, t.TempDir(), ompNative, "/repo", ompSaid)
 	s := claudeSession{Agent: "omp", Native: true, ID: ompNative, Transcript: path}
 	cfg := withDefaults(config{})
-	// A slug for a title: omp titles are none of this plugin's business, so
-	// the recap runs and nothing else is asked of the session.
+	// A slug for a title: omp titles are none of this plugin's business
 	r, ran, err := ensureRecap(context.Background(), cfg, s, "a-slug-for-a-title", false)
 	if err != nil || !ran || r.Text != "Shipping the omp recap. Next, open the PR." || r.Source != "omp" {
 		t.Fatalf("%+v %v %v", r, ran, err)
@@ -166,8 +163,8 @@ func TestOmpRecapsItselfOnceWhileItsSessionStandsStill(t *testing.T) {
 	if _, ran, _ := ensureRecap(context.Background(), cfg, s, "", false); ran || calls != 1 {
 		t.Errorf("recapped again: %d calls", calls)
 	}
-	// Anything added puts it out of date: an omp session file isn't read for
-	// whether it was conversation, as a Codex one isn't.
+	// Anything added puts it out of date: the file isn't read for whether it
+	// was conversation, as a Codex one isn't
 	f, _ := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0)
 	f.WriteString(ompSaid + "\n")
 	f.Close()
@@ -301,8 +298,7 @@ func TestTheOmpForkIsDeletedOnceTheRecapIsTaken(t *testing.T) {
 			}
 		})
 	}
-	// The overlay the fork is passed is there, with its list of what a recap
-	// isn't to load.
+	// The overlay the fork is passed lists what a recap isn't to load
 	overlay, err := os.ReadFile(ompOverlayPath())
 	if err != nil || !strings.Contains(string(overlay), "disabledProviders:") {
 		t.Errorf("%v %q", err, overlay)

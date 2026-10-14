@@ -15,15 +15,12 @@ import (
 	"time"
 )
 
-// omp recaps itself, as Claude and Codex do: `omp --fork <session> -p <prompt>`
-// answers one prompt in a fork of the pane's conversation, writing nothing
-// back to it. Unlike theirs, omp's fork always lands on disk (it has none that
-// doesn't), so it's written into a directory of the plugin's own, which is
-// removed whole once the recap is taken.
+// omp recaps itself, as Claude and Codex do: a fork of the pane's conversation
+// answers one prompt. Those forks always land on disk, so a recap runs in a
+// directory of the plugin's own, removed whole once it is taken
 
-// ompSessionID is the session a session file is for, from its name:
-// <timestamp>_<id>.jsonl, as omp writes it under sessions/. "" for any other
-// file.
+// ompSessionID is the session a session file is for, named
+// <timestamp>_<id>.jsonl as omp writes it; "" for any other file
 func ompSessionID(path string) string {
 	if filepath.Ext(path) != ".jsonl" {
 		return ""
@@ -35,24 +32,21 @@ func ompSessionID(path string) string {
 	return ""
 }
 
-// ompTop is what the top of a session file says: the session's own record
-// (its id and the directory it was started in) and whether anything of the
-// conversation is there yet. A pane's session file can be written before
-// anything is said in it (a title slot, a header and its bookkeeping), so one
-// with no message yet is a pane to come back to, not a conversation to recap.
+// ompTop is what a session file's top says. omp writes the file before a pane
+// has said anything, so Said false is a pane to come back to, not a
+// conversation to recap
 type ompTop struct {
 	ID   string
 	Cwd  string
 	Said bool
 }
 
-// ompTopLines is as far into a session file its record and first message are
-// looked for: both are at the top, and a long-running session's file is big.
+// ompTopLines is how far into a session file its record and first message are
+// looked for, since a long-running session's file is big
 const ompTopLines = 64
 
-// readOmpTop reads the top of a session file. A file that isn't there yet
-// comes back as an error wrapping os.ErrNotExist: omp writes a session's file
-// with its first turn, so a pane that hasn't had one has none.
+// readOmpTop reads the top of a session file; one that isn't there yet wraps
+// os.ErrNotExist, since omp writes it with a session's first turn
 func readOmpTop(path string) (ompTop, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -97,18 +91,17 @@ func readOmpTop(path string) (ompTop, error) {
 	return top, nil
 }
 
-// resolveOmpSession finds the omp session in a pane from the path herdr
-// reports for it: the transcript, the id from its file name or its own
-// record, and the cwd the session was started in. A session with nothing
-// said yet comes back without a transcript, as a Claude one does.
+// resolveOmpSession finds the omp session from the path herdr reports for it:
+// its transcript, the id from its file name or record, the cwd it started in.
+// Nothing said yet means no transcript to fork
 func resolveOmpSession(a agentInfo) (claudeSession, error) {
 	if a.AgentSession.Kind != "path" || a.AgentSession.Value == "" {
 		return claudeSession{}, errors.New("herdr has no session path for it")
 	}
 	path := a.AgentSession.Value
 	s := claudeSession{Agent: "omp", Native: true, ID: ompSessionID(path), Cwd: a.Cwd}
-	// The recap runs as the pane's omp does: its PATH, and the binary it was
-	// started as, since herdr's own PATH often hasn't either.
+	// The recap runs as the pane's omp does: its PATH and binary, since
+	// herdr's own PATH often has neither
 	if procs, err := paneProcs(a.PaneID); err == nil && len(procs) > 0 {
 		pid, argv0 := binaryPID(procs, "omp")
 		if pid == 0 {
@@ -140,15 +133,11 @@ func resolveOmpSession(a agentInfo) (claudeSession, error) {
 	return s, nil
 }
 
-// ompOverlay is the config an omp recap's fork runs with, written out as
-// omp-fork.yml and passed as --config: omp has no --no-mcp, so what a recap
-// has no business loading is taken out here instead. It's a settings layer,
-// so its array replaces any disabledProviders the user set: the fork loads
-// none of them. All thirteen are discovery providers that can contribute MCP
-// servers or tools (omp 18.10.1's `mcps` capability takes twelve, the agent
-// configs: codex's `.codex/config.toml`, gemini's `.gemini/settings.json` and
-// opencode's configs among them, and those project files are read whether or
-// not their user-level ones are opted into).
+// ompOverlay is the config a recap's fork runs with, passed as --config: omp
+// has no --no-mcp, so what the recap must not load is disabled here. Each entry
+// is a discovery provider that can contribute MCP servers or tools (omp
+// 18.10.1's `mcps` takes twelve; codex's, gemini's and opencode's project
+// configs load whether or not their own are opted into)
 const ompOverlay = `# herdr-recap: what its omp recaps run with. A settings layer (--config),
 # so its array replaces any disabledProviders you set yourself.
 disabledProviders:
@@ -167,16 +156,15 @@ disabledProviders:
   - windsurf
 `
 
-// ompOverlayPath is where the overlay lives, in the plugin's state dir.
+// ompOverlayPath is the overlay's path in the plugin's state dir
 func ompOverlayPath() string { return filepath.Join(stateDir(), "omp-fork.yml") }
 
-// forkDir is where a recap's fork runs are written, one directory each.
+// forkDir is where a recap's fork runs are written, one directory each
 func forkDir() string { return filepath.Join(stateDir(), "fork") }
 
-// pruneForkRuns forgets fork run directories old enough that their recap has
-// long since been taken or died with the machine. A recap removes its own run,
-// but one killed mid-run (a restart mid-recap, a SIGKILL) leaves its fork's
-// file and the session's copied artifacts behind.
+// pruneForkRuns removes fork run directories whose recap is long over: one
+// killed mid-run (a restart mid-recap, a SIGKILL) leaves its fork and the
+// session's copied artifacts behind
 func pruneForkRuns() {
 	entries, _ := os.ReadDir(forkDir())
 	for _, e := range entries {
@@ -186,14 +174,11 @@ func pruneForkRuns() {
 	}
 }
 
-// writeOmpOverlay writes the overlay out, for a fork to be passed it. It goes
-// through a temporary file of its own and a rename, so that a fork starting
-// while it is written reads the old file or the new one, never a truncated
-// one. A name per write, not one shared one: a recap is one of several at
-// once (the popup recaps a few rows, and each pane's tick starts its own
-// worker), and two of them renaming the same temporary file would leave one
-// recap failing on a file that is no longer there, or truncating the overlay
-// through a name that now holds it.
+// writeOmpOverlay writes the overlay out for a fork to be passed it, through a
+// temporary file of its own and a rename: a fork starting mid-write reads the
+// old or the new file, never a truncated one. A name per write, since several
+// recaps run at once (the popup's rows, each pane's tick): shared, one recap's
+// rename strands another
 func writeOmpOverlay() (string, error) {
 	path := ompOverlayPath()
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
@@ -217,49 +202,42 @@ func writeOmpOverlay() (string, error) {
 	return path, nil
 }
 
-// ompPrompt asks for what omp's own recap of an idle session says
-// (recap-user.md): under 40 words, the goal and the current task, then one
-// next action. It opens by stopping the work: a fork of a pane that is
-// mid-turn ends on a step omp has no result for, and left to itself the
-// model can carry that step on — with a tool call — instead of recapping
-// (seen on 2026-10-14 with omp 18.10.1, forking a session whose own turn was
-// the recap itself; framing the same in --append-system-prompt made no
-// difference and costs the fork its prompt cache). An answer that is a tool
-// call is refused in runOmpRecap.
+// ompPrompt asks for a recap like omp's own (recap-user.md): under 40 words,
+// the goal and current task, then one next action. It opens by stopping the
+// work, since a fork of a mid-turn pane ends on a step omp has no result for
+// and the model can carry it on with a tool call instead of recapping (seen
+// 2026-10-14 on omp 18.10.1; a system prompt framing changed nothing and cost
+// the fork its prompt cache). runOmpRecap refuses a tool call
 const ompPrompt = "Stop: this is a recap request, not a continuation of the work above, and any step it ends on is not to be carried out. " +
 	"Recap this session in under 40 words, for someone coming back to it: the overall goal and the current task, then one next action. " +
 	"Don't use any tools. Answer with 1-2 plain sentences, no markdown, and the recap alone."
 
-// ompToolCall is how omp shows a tool call in what a model reads, and so what
-// a model writes when it means to make one: an opening or closing "DSML" tag,
-// written with one full-width bar around the name (what omp 18.10.1's own
-// renderer and parser use, ASCII `|` accepted too) or a doubled one (what the
-// continuations that prompted this check came back with). The `<` is part of
-// it: a recap that only mentions the marker in prose is still a recap.
+// ompToolCall is omp's tool-call marker, as a model writing one spells it: an
+// opening or closing "DSML" tag with one full-width bar (omp 18.10.1's own
+// renderer and parser; ASCII `|` too) or a doubled one (seen 2026-10-14). The
+// `<` is required: a recap that mentions the marker in prose is still a recap
 var ompToolCall = regexp.MustCompile(`<\/?[｜|]{1,2}DSML`)
 
-// ompArgs forks the session for one answer to prompt, in a run the fork can
-// write nothing of the project's or the user's into: a session dir of the
-// plugin's own, the bare flags, and the overlay's config.
+// ompArgs forks the session for one answer to prompt, in a run that writes
+// nothing of the user's or the project's: a session dir of the plugin's own,
+// the bare flags
 func ompArgs(session, dir, overlay, prompt string) []string {
 	return []string{"--fork", session, "--session-dir", dir, "--config", overlay,
 		"--no-tools", "--no-extensions", "--no-skills", "--no-rules", "--no-title", "--thinking", "off",
 		"-p", prompt}
 }
 
-// terminalVars are the variables omp identifies the terminal it runs in by
-// when stdin isn't one of them, as a fork run by a hook or the popup isn't.
-// Kept out of a recap's environment, the fork reports to nothing and leaves
-// no --continue breadcrumb for the pane, pointing at a session the plugin is
-// about to delete.
+// terminalVars are how omp identifies its terminal when stdin isn't one, as a
+// recap's isn't: getTerminalId's fallback list (packages/tui/src/ttyid.ts, omp
+// 18.10.1). Left in, the fork reports to the pane's terminal and leaves it a
+// --continue breadcrumb to a session about to be deleted
 var terminalVars = []string{
 	"ZELLIJ_PANE_ID", "ZELLIJ_SESSION_NAME", "TMUX_PANE", "CMUX_SURFACE_ID",
 	"KITTY_WINDOW_ID", "WEZTERM_PANE", "TERM_SESSION_ID", "WT_SESSION",
 }
 
-// ompEnv is the environment an omp recap runs with: the plugin's, less
-// anything that would tie it to herdr (as a Claude recap's is), less the
-// terminal's own identity, with the agent's PATH.
+// ompEnv is the environment a recap runs with: the plugin's, less herdr's and
+// the terminal's, with the agent's PATH
 func ompEnv(s claudeSession) []string {
 	var env []string
 	for _, kv := range os.Environ() {
@@ -275,8 +253,7 @@ func ompEnv(s claudeSession) []string {
 	return env
 }
 
-// ompBinary is the omp a recap runs: the one the pane's agent runs, else
-// whatever "omp" is on PATH.
+// ompBinary is the omp a recap runs: the pane's own, else "omp" on PATH
 func ompBinary(s claudeSession) string {
 	if s.Binary != "" {
 		return s.Binary
@@ -295,17 +272,16 @@ var runOmp = func(ctx context.Context, s claudeSession, prompt string) (string, 
 	if err := os.MkdirAll(fork, 0o700); err != nil {
 		return "", err
 	}
-	// A directory per run: it holds the fork's file and, beside it, what the
-	// session's artifacts were copied to, and goes whole when the recap is
-	// taken, on success or failure.
+	// A directory per run: the fork's file and the session's copied
+	// artifacts, removed whole when the recap is taken, on success or failure
 	dir, err := os.MkdirTemp(fork, "run-")
 	if err != nil {
 		return "", err
 	}
 	defer os.RemoveAll(dir)
 	cmd := exec.CommandContext(ctx, ompBinary(s), ompArgs(s.Transcript, dir, overlay, prompt)...)
-	// In the session's own directory: the fork is of that conversation, in
-	// the project it was had in.
+	// The session's own directory: the fork belongs to the project it was
+	// had in
 	cmd.Dir, cmd.Env = s.Cwd, ompEnv(s)
 	cmd.WaitDelay = 5 * time.Second
 	out, stderr, err := runBoundedCommand(cmd)
@@ -330,9 +306,8 @@ func runOmpRecap(ctx context.Context, cfg config, s claudeSession) (recap, error
 		return recap{}, errors.New("omp gave an empty recap")
 	}
 	if ompToolCall.MatchString(text) {
-		// The fork carried the session's work on rather than recapping it:
-		// no recap is better than one that is really the next step of the
-		// work, shown as though it were where the work got to.
+		// The fork carried the work on rather than recapping it: a next step
+		// shown as the recap is worse than no recap
 		return recap{}, errors.New("omp answered with a tool call, not a recap")
 	}
 	return recap{Session: s.ID, Source: "omp", Text: text, At: time.Now()}, nil
