@@ -143,20 +143,27 @@ func resolveOmpSession(a agentInfo) (claudeSession, error) {
 // omp-fork.yml and passed as --config: omp has no --no-mcp, so what a recap
 // has no business loading is taken out here instead. It's a settings layer,
 // so its array replaces any disabledProviders the user set: the fork loads
-// none of them.
+// none of them. All thirteen are discovery providers that can contribute MCP
+// servers or tools (omp 18.10.1's `mcps` capability takes twelve, the agent
+// configs: codex's `.codex/config.toml`, gemini's `.gemini/settings.json` and
+// opencode's configs among them, and those project files are read whether or
+// not their user-level ones are opted into).
 const ompOverlay = `# herdr-recap: what its omp recaps run with. A settings layer (--config),
 # so its array replaces any disabledProviders you set yourself.
 disabledProviders:
   - native
   - mcp-json
   - agents
+  - agent-plugins
   - claude
   - claude-plugins
-  - omp-plugins
-  - agent-plugins
+  - codex
   - cursor
-  - windsurf
+  - gemini
+  - omp-plugins
+  - opencode
   - vscode
+  - windsurf
 `
 
 // ompOverlayPath is where the overlay lives, in the plugin's state dir.
